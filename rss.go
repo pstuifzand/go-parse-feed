@@ -125,6 +125,48 @@ func (f *Feed) Update() error {
 	return f.UpdateByFunc(f.FetchFunc)
 }
 
+// UpdateWithContent parses content and updates f
+func (f *Feed) UpdateWithContent(content []byte) error {
+	feed, err := Parse(content)
+	f.UpdateByFeed(feed)
+	return err
+}
+
+func (f *Feed) UpdateByFeed(update *Feed) error {
+
+	// Check that we don't update too often.
+	if f.Refresh.After(time.Now()) {
+		return errUpdateNotReady
+	}
+
+	if f.UpdateURL == "" {
+		return errors.New("feed has no URL")
+	}
+
+	if f.ItemMap == nil {
+		f.ItemMap = make(map[string]struct{})
+		for _, item := range f.Items {
+			if _, ok := f.ItemMap[item.ID]; !ok {
+				f.ItemMap[item.ID] = struct{}{}
+			}
+		}
+	}
+
+	f.Refresh = update.Refresh
+	f.Title = update.Title
+	f.Description = update.Description
+
+	for _, item := range update.Items {
+		if _, ok := f.ItemMap[item.ID]; !ok {
+			f.Items = append(f.Items, item)
+			f.ItemMap[item.ID] = struct{}{}
+			f.Unread++
+		}
+	}
+
+	return nil
+}
+
 // UpdateByFunc uses a func to update f.
 func (f *Feed) UpdateByFunc(fetchFunc FetchFunc) error {
 
